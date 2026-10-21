@@ -1,0 +1,17 @@
+{
+  "name": "nba-guessing-game-web-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "test": "node --test",
+    "validate:data": "node scripts/validate-data.js",
+    "build:site": "vite build",
+    "build": "npm run validate:data && npm test && npm run build:site",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^8.3.5"
+  }
+}
