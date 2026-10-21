@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createNameIndex } from '../../src/game/names.js';
-import { createTeamStorage, migrateOrlandoLegacy } from '../../src/game/storage.js';
+import { createTeamStorage } from '../../src/game/storage.js';
+import { migrateLegacyProgress } from '../../src/teams/orlando/migrate.js';
 
 class MemoryStorage {
   constructor(entries = {}) {
@@ -40,7 +41,7 @@ test('createTeamStorage falls back when stored JSON is malformed or storage thro
   assert.doesNotThrow(() => createTeamStorage(broken, 'orlando').set('daily', { value: 1 }));
 });
 
-test('migrateOrlandoLegacy converts legacy names and day indexes without deleting old keys', () => {
+test('migrateLegacyProgress converts legacy names and day indexes without deleting old keys', () => {
   const storage = new MemoryStorage({
     mpg_daily: JSON.stringify({ day: 2, guesses: ['Shaq', 'Unknown Person', 'Hedo Türkoğlu'] }),
     mpg_stats: JSON.stringify({
@@ -54,7 +55,7 @@ test('migrateOrlandoLegacy converts legacy names and day indexes without deletin
     { id: 'hedo-turkoglu', name: 'Hedo Türkoğlu', aliases: ['Hedo'] },
   ]);
 
-  migrateOrlandoLegacy(storage, nameIndex, {
+  migrateLegacyProgress(storage, nameIndex, {
     schedule: { '2026-10-21': 'tracy-mcgrady' },
     epoch: '2026-10-19',
     maxGuesses: 5,
@@ -81,7 +82,7 @@ test('migrateOrlandoLegacy converts legacy names and day indexes without deletin
   assert.notEqual(storage.getItem('mpg_best_streak'), null);
 });
 
-test('migrateOrlandoLegacy is idempotent and never overwrites new values', () => {
+test('migrateLegacyProgress is idempotent and never overwrites new values', () => {
   const storage = new MemoryStorage({
     mpg_daily: JSON.stringify({ day: 0, guesses: ['Shaq'] }),
     'nba-guess:v1:orlando:daily': JSON.stringify({ date: 'saved-new-value' }),
@@ -90,8 +91,8 @@ test('migrateOrlandoLegacy is idempotent and never overwrites new values', () =>
     { id: 'shaquille-oneal', name: "Shaquille O'Neal", aliases: ['Shaq'] },
   ]);
 
-  migrateOrlandoLegacy(storage, nameIndex, { schedule: {}, epoch: '2026-10-19', maxGuesses: 5 });
-  migrateOrlandoLegacy(storage, nameIndex, { schedule: {}, epoch: '2026-10-19', maxGuesses: 5 });
+  migrateLegacyProgress(storage, nameIndex, { schedule: {}, epoch: '2026-10-19', maxGuesses: 5 });
+  migrateLegacyProgress(storage, nameIndex, { schedule: {}, epoch: '2026-10-19', maxGuesses: 5 });
 
   assert.deepEqual(createTeamStorage(storage, 'orlando').get('daily', null), { date: 'saved-new-value' });
 });
