@@ -1,8 +1,8 @@
 import identities from '../src/data/player-identities.json' with { type: 'json' };
 import { validateRegistry } from '../src/data/validate.js';
-import { orlandoTeam } from '../src/teams/orlando/index.js';
+import { loadRegisteredTeams } from '../src/teams/index.js';
 
-const result = validateRegistry([orlandoTeam], identities);
+const result = validateRegistry(await loadRegisteredTeams(), identities);
 
 for (const warning of result.warnings) console.warn(`WARNING: ${warning}`);
 for (const error of result.errors) console.error(`ERROR: ${error}`);

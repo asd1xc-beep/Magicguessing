@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { orlandoTeam } from '../../src/teams/orlando/index.js';
-import { loadTeam, teamRegistry } from '../../src/teams/index.js';
+import { loadRegisteredTeams, loadTeam, teamRegistry } from '../../src/teams/index.js';
 
 test('Orlando preserves the complete searchable roster and answer pool', () => {
   assert.equal(orlandoTeam.identities.length, 297);
@@ -35,5 +35,14 @@ test('the production registry contains Orlando only and loads a normalized bundl
   assert.equal(team.config.id, 'orlando');
   assert.equal(team.playerById.get('tracy-mcgrady').stats.pointsPerGame, 28.1);
   await assert.rejects(() => loadTeam('sample'), /Unknown team/i);
+});
+
+test('loadRegisteredTeams loads every descriptor for production validation', async () => {
+  const loaded = await loadRegisteredTeams([
+    { id: 'first', load: async () => ({ config: { id: 'first' } }) },
+    { id: 'second', load: async () => ({ config: { id: 'second' } }) },
+  ]);
+
+  assert.deepEqual(loaded.map((team) => team.config.id), ['first', 'second']);
 });
 

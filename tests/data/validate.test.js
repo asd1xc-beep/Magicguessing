@@ -22,7 +22,10 @@ const config = {
     missingDaily: 'No puzzle published.',
     seasonLabel: 'First Sample season',
   },
-  theme: { primary: '#123456', hover: '#234567', border: '#345678', text: '#ffffff' },
+  theme: {
+    primary: '#123456', hover: '#234567', border: '#345678', text: '#ffffff',
+    background: '#001122', surface: '#112233',
+  },
   modes: [
     { id: 'daily', label: 'Daily' },
     { id: 'all', label: 'All Players', difficulties: ['headliner', 'deep-cut'] },
@@ -31,6 +34,7 @@ const config = {
   rules: {
     maxGuesses: 5,
     points: [50, 40, 30, 20, 10],
+    dailyNumberEpoch: '2026-10-19',
     dailyEligibility: { difficulties: ['headliner'], minimumGamesForOthers: 100 },
     comparison: {
       thresholds: { debut: 3, seasons: 1, games: 50, pointsPerGame: 2, jersey: 2 },
@@ -132,6 +136,39 @@ test('validateRegistry rejects missing configuration required by the shared inte
   const result = validate({ team: { config: { ...config, copy: { ...config.copy, shareTitle: '' } } } });
 
   assert.ok(result.errors.some((error) => /copy\.shareTitle/i.test(error)));
+});
+
+test('validateRegistry reports every runtime-required rule shape without throwing', () => {
+  const cases = [
+    {
+      label: 'rules.dailyNumberEpoch',
+      config: { ...config, rules: { ...config.rules, dailyNumberEpoch: undefined } },
+      pattern: /rules\.dailyNumberEpoch/i,
+    },
+    {
+      label: 'rules.dailyEligibility',
+      config: { ...config, rules: { ...config.rules, dailyEligibility: undefined } },
+      pattern: /rules\.dailyEligibility/i,
+    },
+    {
+      label: 'rules.comparison',
+      config: { ...config, rules: { ...config.rules, comparison: undefined } },
+      pattern: /rules\.comparison/i,
+    },
+    {
+      label: 'mode contents',
+      config: { ...config, modes: [{ id: '', label: '' }] },
+      pattern: /mode/i,
+    },
+  ];
+
+  for (const testCase of cases) {
+    let result;
+    assert.doesNotThrow(() => {
+      result = validate({ team: { config: testCase.config } });
+    }, testCase.label);
+    assert.ok(result.errors.some((error) => testCase.pattern.test(error)), testCase.label);
+  }
 });
 
 test('validateRegistry rejects invalid, gapped, unknown, and ineligible schedule entries', () => {

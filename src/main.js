@@ -1,9 +1,10 @@
 import { teamRegistry, loadTeam } from './teams/index.js';
+import { resolveStorage } from './game/storage.js';
 import { createApp } from './ui/app.js';
 
 const app = createApp({
   document,
-  storage: window.localStorage,
+  storage: resolveStorage(() => window.localStorage),
   registry: teamRegistry,
   loadTeam,
 });

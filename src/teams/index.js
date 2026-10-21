@@ -12,3 +12,7 @@ export async function loadTeam(teamId) {
   return descriptor.load();
 }
 
+export function loadRegisteredTeams(registry = teamRegistry) {
+  return Promise.all(registry.map((descriptor) => descriptor.load()));
+}
+

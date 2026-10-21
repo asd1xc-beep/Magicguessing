@@ -69,3 +69,27 @@ test('the controller accepts a non-Orlando team without changing its copy or the
   assert.equal(controller.activeTeam.config.theme.primary, '#aa2244');
 });
 
+test('the controller ignores a stale team load after a newer selection completes', async () => {
+  const storage = new MemoryStorage();
+  const pending = new Map();
+  const activated = [];
+  const loadTeam = (teamId) => new Promise((resolve) => pending.set(teamId, resolve));
+  const controller = createTeamController({
+    storage,
+    registry,
+    loadTeam,
+    onTeamChange(team) { activated.push(team.config.id); },
+  });
+
+  const slowSelection = controller.selectTeam('orlando');
+  const fastSelection = controller.selectTeam('sample');
+  pending.get('sample')({ ...sampleTeam, config: { ...sampleTeam.config, id: 'sample' } });
+  await fastSelection;
+  pending.get('orlando')({ ...sampleTeam, config: { ...sampleTeam.config, id: 'orlando' } });
+  await slowSelection;
+
+  assert.deepEqual(activated, ['sample']);
+  assert.equal(controller.activeTeam.config.id, 'sample');
+  assert.equal(storage.getItem(SELECTED_TEAM_KEY), 'sample');
+});
+

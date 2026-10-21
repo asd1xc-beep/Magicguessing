@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createNameIndex } from '../../src/game/names.js';
-import { createTeamStorage } from '../../src/game/storage.js';
+import { createTeamStorage, resolveStorage } from '../../src/game/storage.js';
 import { migrateLegacyProgress } from '../../src/teams/orlando/migrate.js';
 
 class MemoryStorage {
@@ -39,6 +39,15 @@ test('createTeamStorage falls back when stored JSON is malformed or storage thro
   assert.deepEqual(createTeamStorage(malformed, 'orlando').get('daily', { fresh: true }), { fresh: true });
   assert.deepEqual(createTeamStorage(broken, 'orlando').get('daily', { fresh: true }), { fresh: true });
   assert.doesNotThrow(() => createTeamStorage(broken, 'orlando').set('daily', { value: 1 }));
+});
+
+test('resolveStorage provides working in-memory storage when browser storage is blocked', () => {
+  const storage = resolveStorage(() => {
+    throw new DOMException('Access denied', 'SecurityError');
+  });
+
+  assert.doesNotThrow(() => storage.setItem('selected-team', 'orlando'));
+  assert.equal(storage.getItem('selected-team'), 'orlando');
 });
 
 test('migrateLegacyProgress converts legacy names and day indexes without deleting old keys', () => {

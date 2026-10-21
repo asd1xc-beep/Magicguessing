@@ -30,10 +30,13 @@ export function resolveInitialTeamId(storage, registry) {
 
 export function createTeamController({ storage, registry, loadTeam, onTeamChange }) {
   let activeTeam = null;
+  let selectionGeneration = 0;
 
   async function selectTeam(teamId) {
     if (!registry.some((team) => team.id === teamId)) throw new Error(`Unknown team: ${teamId}`);
+    const generation = ++selectionGeneration;
     const team = await loadTeam(teamId);
+    if (generation !== selectionGeneration) return activeTeam;
     activeTeam = team;
     try {
       storage.setItem(SELECTED_TEAM_KEY, teamId);
