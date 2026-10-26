@@ -55,3 +55,18 @@ test('scheduledPlayerId returns the published ID without deriving from a player 
   assert.equal(scheduledPlayerId(schedule, new Date(2026, 9, 22)), null);
 });
 
+
+test('isDailyEligible applies difficulty, games, and the optional era cutoff', async () => {
+  const { isDailyEligible } = await import('../../src/game/rules.js');
+  const player = (difficulty, games, firstSeason) => ({ answer: { difficulty }, stats: { games, firstSeason } });
+  const rule = { difficulties: ['headliner'], minimumGamesForOthers: 100 };
+  const eraRule = { ...rule, minimumFirstSeason: 1980 };
+
+  assert.equal(isDailyEligible(player('headliner', 10, 1970), rule), true);
+  assert.equal(isDailyEligible(player('deep-cut', 150, 1970), rule), true);
+  assert.equal(isDailyEligible(player('deep-cut', 50, 2000), rule), false);
+  assert.equal(isDailyEligible({ stats: { games: 500, firstSeason: 2000 } }, rule), false);
+  assert.equal(isDailyEligible(player('headliner', 800, 1968), eraRule), false);
+  assert.equal(isDailyEligible(player('headliner', 800, 1980), eraRule), true);
+  assert.equal(isDailyEligible(player('deep-cut', 120, 1986), eraRule), true);
+});

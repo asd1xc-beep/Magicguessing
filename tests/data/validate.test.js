@@ -46,6 +46,7 @@ const config = {
   },
   dataset: {
     seasonCoverage: 'through test season',
+    verificationStatus: 'legacy-import',
     sources: [{ id: 'source-one', label: 'Source One' }],
   },
 };
@@ -77,10 +78,11 @@ function validate(overrides = {}) {
   return validateRegistry(
     [{ config, players, schedule: { '2026-10-19': 'alpha-player' }, ...overrides.team }],
     overrides.identities ?? identities,
+    { today: overrides.today ?? null },
   );
 }
 
-test('validateRegistry accepts a complete team and aggregates missing verification dates as a warning', () => {
+test('validateRegistry accepts a complete legacy team and aggregates missing verification dates as a warning', () => {
   const result = validate();
 
   assert.deepEqual(result.errors, []);
@@ -88,17 +90,80 @@ test('validateRegistry accepts a complete team and aggregates missing verificati
   assert.match(result.warnings[0], /1 player record.*no verification date/i);
 });
 
-test('validateRegistry rejects duplicate permanent IDs and ambiguous normalized names or aliases', () => {
+test('validateRegistry rejects duplicate permanent IDs and names that are ambiguous within a team', () => {
+  const gamma = { ...players[1], playerId: 'gamma-player' };
   const result = validate({
     identities: [
       ...identities,
       { id: 'alpha-player', name: 'Another Person', aliases: [] },
-      { id: 'gamma-player', name: 'Gamma Player', aliases: ['Alpha'] },
+      { id: 'gamma-player', name: 'Gamma Player', aliases: ['Beta Player'] },
     ],
+    team: { players: [...players, gamma] },
   });
 
   assert.ok(result.errors.some((error) => /duplicate player id.*alpha-player/i.test(error)));
-  assert.ok(result.errors.some((error) => /ambiguous.*alpha/i.test(error)));
+  assert.ok(result.errors.some((error) => /team sample.*ambiguous.*betaplayer.*beta-player, gamma-player/i.test(error)));
+});
+
+test('validateRegistry allows different players to share a name when they are on different teams', () => {
+  const result = validate({
+    identities: [
+      ...identities,
+      { id: 'beta-player-2', name: 'Beta Player Jr.', aliases: [], bbrefId: 'playebe02' },
+    ],
+  });
+
+  assert.deepEqual(result.errors, []);
+});
+
+test('validateRegistry checks Basketball-Reference IDs for format and reuse', () => {
+  const result = validate({
+    identities: [
+      { ...identities[0], bbrefId: 'playeal01' },
+      { ...identities[1], bbrefId: 'playeal01' },
+      { id: 'gamma-player', name: 'Gamma Player', aliases: [], bbrefId: 'Not An ID' },
+    ],
+  });
+
+  assert.ok(result.errors.some((error) => /share bbrefId playeal01/i.test(error)));
+  assert.ok(result.errors.some((error) => /gamma-player has an invalid bbrefId/i.test(error)));
+});
+
+test('validateRegistry requires sources, verification dates, and bbref IDs outside the legacy import', () => {
+  const strictConfig = { ...config, dataset: { ...config.dataset, verificationStatus: 'verified' } };
+  const result = validate({
+    team: {
+      config: strictConfig,
+      players: [{ ...players[0], provenance: { sourceRefs: [], verifiedAt: null } }, players[1]],
+    },
+  });
+
+  assert.ok(result.errors.some((error) => /alpha-player has no verifiedAt/i.test(error)));
+  assert.ok(result.errors.some((error) => /alpha-player has no source references/i.test(error)));
+  assert.ok(result.errors.some((error) => /alpha-player needs a bbrefId/i.test(error)));
+  assert.ok(result.errors.some((error) => /beta-player needs a bbrefId/i.test(error)));
+  assert.equal(result.warnings.length, 0);
+});
+
+test('validateRegistry applies the era cutoff to scheduled answers', () => {
+  const eraConfig = {
+    ...config,
+    rules: { ...config.rules, dailyEligibility: { ...config.rules.dailyEligibility, minimumFirstSeason: 2021 } },
+  };
+  const result = validate({ team: { config: eraConfig } });
+
+  assert.ok(result.errors.some((error) => /not daily eligible: alpha-player/i.test(error)));
+});
+
+test('validateRegistry warns when a daily schedule is about to run out or already has', () => {
+  const schedule = { '2026-10-19': 'alpha-player', '2026-10-20': 'alpha-player' };
+  const soon = validate({ team: { schedule }, today: '2026-10-05' });
+  const over = validate({ team: { schedule }, today: '2026-11-01' });
+  const fine = validate({ team: { schedule }, today: '2026-09-01' });
+
+  assert.ok(soon.warnings.some((warning) => /schedule ends 2026-10-20 \(15 days left\)/.test(warning)));
+  assert.ok(over.warnings.some((warning) => /schedule ran out on 2026-10-20/.test(warning)));
+  assert.ok(!fine.warnings.some((warning) => /schedule/.test(warning)));
 });
 
 test('validateRegistry rejects unknown and duplicate team player references', () => {

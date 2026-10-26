@@ -18,7 +18,19 @@ export function buildTeamOptions(registry) {
   return registry.map(({ id, label }) => ({ value: id, label }));
 }
 
-export function resolveInitialTeamId(storage, registry) {
+export const TEAM_URL_PARAM = 'team';
+
+/** A link to the game that opens on the given team, keeping any other query parameters. */
+export function teamUrl(location, teamId) {
+  const params = new URLSearchParams(location?.search ?? '');
+  params.set(TEAM_URL_PARAM, teamId);
+  return `${location?.origin ?? ''}${location?.pathname ?? ''}?${params}${location?.hash ?? ''}`;
+}
+
+/** A shared link (?team=<id>) wins, then the saved selection, then the first registered team. */
+export function resolveInitialTeamId(storage, registry, search = '') {
+  const linked = new URLSearchParams(search).get(TEAM_URL_PARAM);
+  if (registry.some((team) => team.id === linked)) return linked;
   let saved = null;
   try {
     saved = storage.getItem(SELECTED_TEAM_KEY);
@@ -28,7 +40,7 @@ export function resolveInitialTeamId(storage, registry) {
   return registry.some((team) => team.id === saved) ? saved : registry[0]?.id ?? null;
 }
 
-export function createTeamController({ storage, registry, loadTeam, onTeamChange }) {
+export function createTeamController({ storage, registry, loadTeam, onTeamChange, initialSearch = '' }) {
   let activeTeam = null;
   let selectionGeneration = 0;
 
@@ -52,7 +64,7 @@ export function createTeamController({ storage, registry, loadTeam, onTeamChange
       return activeTeam;
     },
     start() {
-      const initialTeamId = resolveInitialTeamId(storage, registry);
+      const initialTeamId = resolveInitialTeamId(storage, registry, initialSearch);
       if (!initialTeamId) throw new Error('No teams are registered');
       return selectTeam(initialTeamId);
     },
@@ -124,11 +136,13 @@ export function createApp({
   let autocomplete = null;
   let started = false;
 
+  const view = document.defaultView;
   const controller = createTeamController({
     storage,
     registry,
     loadTeam,
     onTeamChange: activateTeam,
+    initialSearch: view?.location?.search ?? '',
   });
 
   function identity(playerId) {
@@ -363,8 +377,20 @@ export function createApp({
     elements.pageTitle.textContent = team.config.copy.pageTitle;
     elements.pageDescription.textContent = team.config.copy.description;
     elements.dataNote.textContent = `Points: ${team.config.rules.points.join(', ')} from the first clue through the last. The daily player changes at midnight your time. ${team.config.copy.footer}`;
+    syncAddressBar(team.config.id);
     renderModes();
     initGame();
+  }
+
+  // Keep the address bar on the selected team so a copied page link opens the same team.
+  function syncAddressBar(teamId) {
+    const location = view?.location;
+    if (!location?.protocol?.startsWith('http') || !view.history?.replaceState) return;
+    try {
+      view.history.replaceState(view.history.state, '', teamUrl(location, teamId));
+    } catch {
+      // Changing the URL is a convenience only.
+    }
   }
 
   function handleGuessSubmit(event) {
@@ -399,8 +425,10 @@ export function createApp({
     const lines = gridRows.map((row) => row.map((color) => emoji[color]).join(''));
     const number = Math.max(0, daysBetween(team.config.rules.dailyNumberEpoch, currentDate)) + 1;
     let text = `${team.config.copy.shareTitle} #${number} — ${won ? guessCount : 'X'}/${team.config.rules.maxGuesses} · ${lastPoints} pts\n${lines.join('\n')}`;
-    const location = document.defaultView?.location;
-    if (location?.protocol?.startsWith('http')) text += `\n${location.origin}${location.pathname}`;
+    const location = view?.location;
+    if (location?.protocol?.startsWith('http')) {
+      text += `\n${teamUrl({ origin: location.origin, pathname: location.pathname }, team.config.id)}`;
+    }
     return text;
   }
 

@@ -4,7 +4,8 @@ export function normalizeName(value) {
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/[‘’ʼ`´]/g, "'")
-    .replace(/\b(jr|sr|ii|iii|iv)\b\.?/g, '')
+    // Generational suffixes only at the end ("Tim Hardaway Jr."), so "JR Smith" keeps its JR.
+    .replace(/[\s,]+(jr|sr|ii|iii|iv)\.?\s*$/, '')
     .replace(/[^a-z0-9]/g, '');
 }
 
@@ -17,7 +18,8 @@ export function createNameIndex(identities, allowedIds = null) {
 
     const labels = [identity.name, ...(identity.aliases ?? [])];
     const keys = [...new Set(labels.map(normalizeName).filter(Boolean))];
-    const entry = { ...identity, aliases: identity.aliases ?? [], keys };
+    const words = [...new Set(labels.flatMap((label) => label.split(/[\s-]+/)).map(normalizeName).filter(Boolean))];
+    const entry = { ...identity, aliases: identity.aliases ?? [], keys, words };
     entries.push(entry);
 
     for (const key of keys) {
@@ -50,14 +52,15 @@ export function searchPlayers(raw, index, limit = 8) {
 
   return index.entries
     .map((entry) => {
-      const ranks = entry.keys.map((candidate) => {
-        if (candidate.startsWith(key)) return 0;
-        if (candidate.includes(key)) return 1;
-        return 2;
-      });
-      return { entry, rank: Math.min(...ranks) };
+      // 0 = the whole name starts with the query, 1 = one of its words does
+      // ("o'ne" -> Shaquille O'Neal), 2 = the query appears anywhere in the name.
+      let rank = 3;
+      if (entry.keys.some((candidate) => candidate.startsWith(key))) rank = 0;
+      else if (entry.words.some((word) => word.startsWith(key))) rank = 1;
+      else if (entry.keys.some((candidate) => candidate.includes(key))) rank = 2;
+      return { entry, rank };
     })
-    .filter(({ rank }) => rank < 2)
+    .filter(({ rank }) => rank < 3)
     .sort((left, right) => left.rank - right.rank || left.entry.name.localeCompare(right.entry.name))
     .slice(0, limit)
     .map(({ entry }) => ({ id: entry.id, name: entry.name, aliases: entry.aliases }));

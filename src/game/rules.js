@@ -28,3 +28,18 @@ export function scheduledPlayerId(schedule, date = new Date()) {
   return schedule[localDateKey(date)] ?? null;
 }
 
+
+/**
+ * Whether a team player may be scheduled as a daily answer under the team's published rule:
+ * answer data is required; the player must be in a listed difficulty or have enough games;
+ * and, when the rule sets minimumFirstSeason (an era cutoff, as a season-ending year),
+ * the player's first season with the team must be that season or later.
+ */
+export function isDailyEligible(player, rule) {
+  if (!player?.answer || !rule) return false;
+  const byDifficulty = Array.isArray(rule.difficulties) && rule.difficulties.includes(player.answer.difficulty);
+  const byGames = Number.isInteger(rule.minimumGamesForOthers) && player.stats?.games >= rule.minimumGamesForOthers;
+  if (!byDifficulty && !byGames) return false;
+  if (rule.minimumFirstSeason != null && !(player.stats?.firstSeason >= rule.minimumFirstSeason)) return false;
+  return true;
+}
