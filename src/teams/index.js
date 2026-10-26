@@ -4,6 +4,11 @@ export const teamRegistry = [
     label: 'Orlando Magic',
     load: () => import('./orlando/index.js').then((module) => module.orlandoTeam),
   },
+  {
+    id: 'knicks',
+    label: 'New York Knicks',
+    load: () => import('./knicks/index.js').then((module) => module.knicksTeam),
+  },
 ];
 
 export async function loadTeam(teamId) {
