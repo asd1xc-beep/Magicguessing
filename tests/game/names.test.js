@@ -59,3 +59,23 @@ test('searchPlayers ranks prefix matches before contains matches and caps result
   assert.ok(results.every((result) => result.id && result.name));
 });
 
+
+test('searchPlayers ranks a word that starts with the query above a mid-word match', () => {
+  const index = createNameIndex([
+    { id: 'jordan-bone', name: 'Jordan Bone', aliases: [] },
+    { id: 'tyus-jones', name: 'Tyus Jones', aliases: [] },
+    { id: 'shaquille-oneal', name: "Shaquille O'Neal", aliases: ['Shaq'] },
+  ]);
+
+  assert.deepEqual(searchPlayers("o'ne", index).map((result) => result.id), [
+    'shaquille-oneal', 'jordan-bone', 'tyus-jones',
+  ]);
+  assert.equal(searchPlayers('O’Ne', index)[0].id, 'shaquille-oneal');
+});
+
+test('normalizeName drops generational suffixes only at the end of a name', () => {
+  assert.equal(normalizeName('Tim Hardaway Jr.'), normalizeName('Tim Hardaway'));
+  assert.equal(normalizeName('James Ennis III'), 'jamesennis');
+  assert.equal(normalizeName('JR Smith'), normalizeName('J.R. Smith'));
+  assert.equal(normalizeName('JR Smith'), 'jrsmith');
+});

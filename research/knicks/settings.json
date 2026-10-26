@@ -1,0 +1,146 @@
+{
+  "team": "knicks",
+  "franchiseCode": "NYK",
+  "franchiseName": "New York Knicks",
+  "throughSeason": 2026,
+  "retrieved": "2026-10-25",
+  "words": {
+    "place": "New York",
+    "teamName": "Knicks",
+    "franchiseName": "New York Knicks"
+  },
+  "sources": [
+    {
+      "id": "basketball-reference",
+      "url": "https://www.basketball-reference.com/teams/NYK/"
+    }
+  ],
+  "answers": {
+    "minimumFirstSeason": 1980,
+    "deepCutCount": 170,
+    "headliners": [
+      "ewingpa01",
+      "kingbe01",
+      "cartwbi01",
+      "jacksma01",
+      "oaklech01",
+      "starkjo01",
+      "masonan01",
+      "harpede01",
+      "smithch01",
+      "houstal01",
+      "johnsla02",
+      "sprewla01",
+      "cambyma01",
+      "thomaku01",
+      "marbust01",
+      "crawfja01",
+      "robinna01",
+      "leeda02",
+      "stoudam01",
+      "anthoca01",
+      "chandty01",
+      "linje01",
+      "smithjr01",
+      "porzikr01",
+      "randlju01",
+      "barrerj01",
+      "robinmi01",
+      "brunsja01",
+      "hartjo01",
+      "quickim01",
+      "anunoog01",
+      "bridgmi01",
+      "townska01",
+      "rosede01",
+      "fraziwa01",
+      "reedwi01",
+      "monroea01",
+      "debusda01",
+      "bradlbi01",
+      "barnedi01",
+      "lucasje01",
+      "gueriri01",
+      "gallaha01",
+      "braunca01",
+      "mcguidi01",
+      "jacksph01",
+      "richami01",
+      "mcadobo01",
+      "haywosp01",
+      "bellawa01",
+      "cliftna01"
+    ],
+    "extraDeepCuts": [
+      "kiddja01",
+      "mcgratr01",
+      "billuch01",
+      "davisba01",
+      "wallara01",
+      "mutomdi01",
+      "ricegl01",
+      "hardaan01",
+      "francst01",
+      "vanhoke01",
+      "roseja01",
+      "walkeke02",
+      "bibbymi01",
+      "randoza01",
+      "noahjo01",
+      "bargnan01",
+      "mcdanxa01",
+      "morrima03",
+      "smithde03"
+    ]
+  },
+  "displayNames": {},
+  "aliases": {
+    "fraziwa01": [
+      "Clyde",
+      "Clyde Frazier"
+    ],
+    "monroea01": [
+      "Earl the Pearl",
+      "The Pearl"
+    ],
+    "cliftna01": [
+      "Sweetwater Clifton",
+      "Sweetwater"
+    ],
+    "richami01": [
+      "Micheal Ray Richardson",
+      "Sugar Ray Richardson"
+    ],
+    "anthoca01": [
+      "Melo"
+    ],
+    "stoudam01": [
+      "STAT"
+    ],
+    "porzikr01": [
+      "KP"
+    ],
+    "townska01": [
+      "KAT"
+    ],
+    "mcbrimi01": [
+      "Deuce McBride"
+    ],
+    "kanteen01": [
+      "Enes Kanter"
+    ],
+    "marbust01": [
+      "Starbury"
+    ],
+    "sprewla01": [
+      "Spree"
+    ],
+    "johnsla02": [
+      "LJ"
+    ],
+    "linje01": [
+      "Linsanity"
+    ]
+  },
+  "positions": {}
+}

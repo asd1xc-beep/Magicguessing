@@ -1,4 +1,5 @@
 import { normalizeName } from '../game/names.js';
+import { isDailyEligible, localDateKey } from '../game/rules.js';
 
 const VALID_POSITIONS = new Set(['G', 'F', 'C', 'G/F', 'F/C']);
 const VALID_DIFFICULTIES = new Set(['headliner', 'deep-cut']);
@@ -9,6 +10,9 @@ const REQUIRED_COPY = [
 const REQUIRED_THEME = ['primary', 'hover', 'border', 'text', 'background', 'surface'];
 const COMPARISON_FIELDS = ['debut', 'seasons', 'games', 'pointsPerGame', 'jersey'];
 const COMPARISON_LABELS = ['position', ...COMPARISON_FIELDS];
+const BBREF_ID = /^[a-z]+\d{2}$/;
+const LEGACY_VERIFICATION = 'legacy-import';
+const SCHEDULE_WARNING_DAYS = 30;
 
 function isNonEmpty(value) {
   return typeof value === 'string' && value.trim().length > 0;
@@ -29,18 +33,42 @@ function nextDateKey(value) {
   return date.toISOString().slice(0, 10);
 }
 
+function daysBetween(start, end) {
+  return Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86_400_000);
+}
+
+// Different NBA players can share a name (two Dee Browns, a Jr. and a Sr.), so names are
+// only required to be unambiguous within a team; see validateTeamNames.
 function validateIdentities(identities, errors) {
-  const ids = new Set();
-  const labels = new Map();
+  const byId = new Map();
+  const bbrefIds = new Map();
 
   for (const identity of identities) {
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(identity.id ?? '')) {
       errors.push(`Invalid player ID: ${identity.id ?? '(missing)'}`);
     }
-    if (ids.has(identity.id)) errors.push(`Duplicate player ID: ${identity.id}`);
-    ids.add(identity.id);
+    if (byId.has(identity.id)) errors.push(`Duplicate player ID: ${identity.id}`);
+    byId.set(identity.id, identity);
 
     if (!isNonEmpty(identity.name)) errors.push(`Player ${identity.id} has no canonical name`);
+    if (identity.bbrefId != null) {
+      if (!BBREF_ID.test(identity.bbrefId)) {
+        errors.push(`Player ${identity.id} has an invalid bbrefId: ${identity.bbrefId}`);
+      } else if (bbrefIds.has(identity.bbrefId)) {
+        errors.push(`Players ${bbrefIds.get(identity.bbrefId)} and ${identity.id} share bbrefId ${identity.bbrefId}; reuse one identity instead`);
+      } else {
+        bbrefIds.set(identity.bbrefId, identity.id);
+      }
+    }
+  }
+  return byId;
+}
+
+function validateTeamNames(teamId, playerIds, identitiesById, errors) {
+  const labels = new Map();
+  for (const playerId of playerIds) {
+    const identity = identitiesById.get(playerId);
+    if (!identity) continue;
     for (const label of [identity.name, ...(identity.aliases ?? [])]) {
       const normalized = normalizeName(label);
       if (!normalized) continue;
@@ -48,13 +76,11 @@ function validateIdentities(identities, errors) {
       labels.get(normalized).add(identity.id);
     }
   }
-
-  for (const [label, playerIds] of labels) {
-    if (playerIds.size > 1) {
-      errors.push(`Ambiguous normalized name or alias "${label}": ${[...playerIds].join(', ')}`);
+  for (const [label, ids] of labels) {
+    if (ids.size > 1) {
+      errors.push(`Team ${teamId} has an ambiguous normalized name or alias "${label}": ${[...ids].join(', ')}. Give one player a distinguishing display name.`);
     }
   }
-  return ids;
 }
 
 function validateConfig(config, errors) {
@@ -105,7 +131,8 @@ function validateConfig(config, errors) {
   if (!Array.isArray(eligibility?.difficulties)
       || eligibility.difficulties.some((difficulty) => !VALID_DIFFICULTIES.has(difficulty))
       || !Number.isInteger(eligibility?.minimumGamesForOthers)
-      || eligibility.minimumGamesForOthers < 0) {
+      || eligibility.minimumGamesForOthers < 0
+      || (eligibility.minimumFirstSeason != null && !Number.isInteger(eligibility.minimumFirstSeason))) {
     errors.push(`Team ${teamId} has invalid rules.dailyEligibility`);
   }
 
@@ -150,16 +177,7 @@ function validateAnswer(teamId, player, errors) {
   if (!isNonEmpty(player.answer.summary)) errors.push(`${prefix} has an empty answer summary`);
 }
 
-function isDailyEligible(player, config) {
-  if (!player?.answer) return false;
-  const rule = config?.rules?.dailyEligibility;
-  if (!Array.isArray(rule?.difficulties)
-      || !Number.isInteger(rule?.minimumGamesForOthers)) return false;
-  return rule.difficulties.includes(player.answer.difficulty)
-    || player.stats.games >= rule.minimumGamesForOthers;
-}
-
-function validateSchedule(team, playerMap, errors) {
+function validateSchedule(team, playerMap, errors, warnings, today) {
   const validDates = [];
   for (const [date, playerId] of Object.entries(team.schedule ?? {})) {
     if (!validDateKey(date)) {
@@ -170,7 +188,7 @@ function validateSchedule(team, playerMap, errors) {
     const player = playerMap.get(playerId);
     if (!player) {
       errors.push(`Team ${team.config?.id ?? '(missing)'} has unknown scheduled player: ${playerId}`);
-    } else if (!isDailyEligible(player, team.config)) {
+    } else if (!isDailyEligible(player, team.config?.rules?.dailyEligibility)) {
       errors.push(`Team ${team.config?.id ?? '(missing)'} scheduled player is not daily eligible: ${playerId}`);
     }
   }
@@ -181,12 +199,27 @@ function validateSchedule(team, playerMap, errors) {
       errors.push(`Team ${team.config?.id ?? '(missing)'} has a schedule gap after ${validDates[index - 1]}`);
     }
   }
+
+  const lastDate = validDates.at(-1);
+  if (today && lastDate) {
+    const remaining = daysBetween(today, lastDate);
+    const extend = `run: node scripts/extend-schedule.js ${team.config?.id ?? '<team>'}`;
+    if (remaining < 0) {
+      warnings.push(`Team ${team.config?.id}: the daily schedule ran out on ${lastDate}; ${extend}`);
+    } else if (remaining < SCHEDULE_WARNING_DAYS) {
+      warnings.push(`Team ${team.config?.id}: the daily schedule ends ${lastDate} (${remaining} day${remaining === 1 ? '' : 's'} left); ${extend}`);
+    }
+  }
 }
 
-export function validateRegistry(teams, identities) {
+/**
+ * Validates every team against the shared identity registry.
+ * `today` (YYYY-MM-DD) enables schedule-expiry warnings; pass null to skip them.
+ */
+export function validateRegistry(teams, identities, { today = localDateKey() } = {}) {
   const errors = [];
   const warnings = [];
-  const identityIds = validateIdentities(identities, errors);
+  const identitiesById = validateIdentities(identities, errors);
   const teamIds = new Set();
 
   for (const team of teams) {
@@ -196,27 +229,39 @@ export function validateRegistry(teams, identities) {
     teamIds.add(teamId);
 
     const sourceIds = new Set((team.config?.dataset?.sources ?? []).map((source) => source.id));
+    // Only the migrated Orlando import may lack per-record sourcing; every newer team must cite it.
+    const legacy = team.config?.dataset?.verificationStatus === LEGACY_VERIFICATION;
     const teamPlayerIds = new Set();
     const playerMap = new Map();
     let unverified = 0;
 
     for (const player of team.players ?? []) {
+      const prefix = `Team ${teamId} player ${player.playerId}`;
       if (teamPlayerIds.has(player.playerId)) errors.push(`Duplicate team player: ${player.playerId}`);
       teamPlayerIds.add(player.playerId);
       playerMap.set(player.playerId, player);
-      if (!identityIds.has(player.playerId)) errors.push(`Team ${teamId} references unknown player ID: ${player.playerId}`);
+      const identity = identitiesById.get(player.playerId);
+      if (!identity) errors.push(`Team ${teamId} references unknown player ID: ${player.playerId}`);
+      else if (!legacy && identity.bbrefId == null) errors.push(`${prefix} needs a bbrefId on its identity`);
       validateStats(teamId, player.playerId, player.stats, errors);
       validateAnswer(teamId, player, errors);
 
-      if (player.provenance?.verifiedAt == null) unverified += 1;
-      else if (!validDateKey(player.provenance.verifiedAt)) errors.push(`Team ${teamId} player ${player.playerId} has invalid verifiedAt`);
-      for (const sourceRef of player.provenance?.sourceRefs ?? []) {
-        if (!sourceIds.has(sourceRef)) errors.push(`Team ${teamId} player ${player.playerId} has unknown source reference: ${sourceRef}`);
+      const sourceRefs = player.provenance?.sourceRefs ?? [];
+      if (player.provenance?.verifiedAt == null) {
+        if (legacy) unverified += 1;
+        else errors.push(`${prefix} has no verifiedAt date`);
+      } else if (!validDateKey(player.provenance.verifiedAt)) {
+        errors.push(`${prefix} has invalid verifiedAt`);
+      }
+      if (!legacy && sourceRefs.length === 0) errors.push(`${prefix} has no source references`);
+      for (const sourceRef of sourceRefs) {
+        if (!sourceIds.has(sourceRef)) errors.push(`${prefix} has unknown source reference: ${sourceRef}`);
       }
     }
 
     if (unverified > 0) warnings.push(`Team ${teamId}: ${unverified} player record${unverified === 1 ? '' : 's'} have no verification date`);
-    validateSchedule(team, playerMap, errors);
+    validateTeamNames(teamId, teamPlayerIds, identitiesById, errors);
+    validateSchedule(team, playerMap, errors, warnings, today);
   }
 
   return { errors, warnings };

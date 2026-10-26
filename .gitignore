@@ -7,3 +7,6 @@ dist/
 .env.*
 !.env.example
 
+
+# Downloaded Basketball-Reference pages (re-created by scripts/research/bbref.js fetch)
+research/.cache/

@@ -6,6 +6,7 @@ import {
   buildTeamOptions,
   createTeamController,
   resolveInitialTeamId,
+  teamUrl,
 } from '../../src/ui/app.js';
 import { sampleTeam } from '../fixtures/sample-team.js';
 
@@ -93,3 +94,30 @@ test('the controller ignores a stale team load after a newer selection completes
   assert.equal(storage.getItem(SELECTED_TEAM_KEY), 'sample');
 });
 
+
+test('a ?team= link opens that team ahead of the saved selection, and ignores unknown teams', () => {
+  const storage = new MemoryStorage({ [SELECTED_TEAM_KEY]: 'orlando' });
+  assert.equal(resolveInitialTeamId(storage, registry, '?team=sample'), 'sample');
+  assert.equal(resolveInitialTeamId(storage, registry, '?team=nope'), 'orlando');
+  assert.equal(resolveInitialTeamId(new MemoryStorage(), registry, '?utm=x&team=sample'), 'sample');
+});
+
+test('teamUrl builds a shareable link for a team and keeps other parameters', () => {
+  const location = { origin: 'https://example.github.io', pathname: '/game/', search: '?utm=x&team=orlando', hash: '' };
+  assert.equal(teamUrl(location, 'sample'), 'https://example.github.io/game/?utm=x&team=sample');
+  assert.equal(teamUrl({ origin: 'https://a.b', pathname: '/' }, 'sample'), 'https://a.b/?team=sample');
+});
+
+test('the controller starts on the team named in the page link', async () => {
+  const activated = [];
+  const controller = createTeamController({
+    storage: new MemoryStorage({ [SELECTED_TEAM_KEY]: 'orlando' }),
+    registry,
+    loadTeam: async (teamId) => ({ ...sampleTeam, config: { ...sampleTeam.config, id: teamId } }),
+    onTeamChange(team) { activated.push(team.config.id); },
+    initialSearch: '?team=sample',
+  });
+
+  await controller.start();
+  assert.deepEqual(activated, ['sample']);
+});
